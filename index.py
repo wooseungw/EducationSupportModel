@@ -1,13 +1,14 @@
 import streamlit as st
-from langchain.llms import OpenAI
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
+from langchain_core.output_parsers import StrOutputParser
+
 prompt = ChatPromptTemplate.from_messages([
-    ("system", "You are world class technical documentation writer. \n Please writedowm markdown language."),
+    ("system", "You are world class technical documentation writer. \n\
+        Please writedowm markdown language.\n\
+        And always speak Korean."),
     ("user", "{input}")
 ])
-
-#
-
 import os
 import requests
 #st.write(st.secrets.openai)
@@ -18,10 +19,15 @@ def checking_openai(api_key):
     response = requests.get("https://api.openai.com/v1/engines", headers=headers)
     return response.status_code == 200
 
-# Streamlit 세션 상태 초기화
+# state를 이용한 API 키 유효성 검사
+if "api_key_valid" not in st.session_state:
+    st.session_state.api_key_valid = False
+    st.session_state.openai = ""
+
 if checking_openai(st.secrets.openai):
-    st.session_state.openai_valid = True
+    st.session_state.api_key_valid = True
     st.session_state.openai = st.secrets.openai
+    
 
 def checking_api_collback():
     if checking_openai(st.session_state.openai_api_input):
@@ -36,13 +42,17 @@ def input_api_key():
     st.sidebar.header("OpenAI API 키 입력")
     st.sidebar.text_input(label="OpenAI API를 입력하세요",type="password", key="openai_api_input",on_change=checking_api_collback)
     
-def generate_response(input_text):
-    llm = OpenAI(temperature=0.7, openai_api_key=st.secrets.openai)
-    chain = prompt | llm 
-    st.markdown(chain.invoke(input_text))
+# Langchain을 이용한 답변 생성, 프롬프트 연결
+def generate_response(text):
+    if st.session_state.api_key_valid:
+        output_parser = StrOutputParser()
+        llm = ChatOpenAI(openai_api_key=st.session_state.openai)
+        chain = prompt | llm | output_parser
+        st.markdown(chain.invoke(text))
+        
 def main_page():
     with st.form('my_form'):
-        text = st.text_area('Enter text:', '랭체인이 뭔가요? 3가지 장점을 설명해주세요.')
+        text = st.text_area('Enter text:', 'ex) CNN이 뭔가요? 어떤 원리인지 설명해주세요.')
         submitted = st.form_submit_button('Submit')
     if submitted:
         generate_response(text)
